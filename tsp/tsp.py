@@ -113,7 +113,6 @@ class TSP:
                 new_distance += dist_matrix[cycle_copy[other_index], cycle_copy[get_index(other_index + 1, len(cycle))]]
 
             if new_distance < best_distance:
-                print("Best changed")
                 best_distance = new_distance
                 best_cycle = cycle_copy
 
@@ -162,10 +161,11 @@ class TSP:
         if (dist_matrix == np.inf).any():
             raise UnreachableVertexException("All vertices must be reachable.")
 
-        distance, cycle = self.greedy_solution(dist_matrix=dist_matrix)
-        best_distance, best_cycle = self.improve_distance(dist_matrix=dist_matrix, distance=distance, cycle=cycle)
+        greedy_distance, greedy_cycle = self.greedy_solution(dist_matrix=dist_matrix)
+        greedy_distance_ext, greedy_cycle_ext = self.expand_path(dist_matrix=dist_matrix, predecessors=predecessors, best_cycle=greedy_cycle)
+        best_distance, best_cycle = self.improve_distance(dist_matrix=dist_matrix, distance=greedy_distance, cycle=greedy_cycle)
         best_distance_ext, best_cycle_ext = self.expand_path(dist_matrix=dist_matrix, predecessors=predecessors, best_cycle=best_cycle)
 
         if (not np.isclose(best_distance_ext, best_distance)):
             raise RuntimeError("Bad best distance ext. If you see this error, please open issue.")
-        return distance, best_distance_ext, np.asarray(best_cycle_ext)
+        return greedy_distance_ext, greedy_cycle_ext, best_distance_ext, np.asarray(best_cycle_ext)
