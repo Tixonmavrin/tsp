@@ -161,4 +161,10 @@ class TSP:
         best_distances, best_cycle = self.improve_distance(dist_matrix=dist_matrix, distances=greedy_distances, cycle=greedy_cycle)
         best_cycle_ext = self.expand_path(dist_matrix=dist_matrix, predecessors=predecessors, cycle=best_cycle)
 
+        if not np.isclose(greedy_distances.sum(), self.get_cycle_distances(greedy_cycle_ext, dist_matrix).sum()) or not np.isclose(best_distances.sum(), self.get_cycle_distances(best_cycle_ext, dist_matrix).sum()):
+            raise RuntimeError("Bad cycle. If you see this error, please open issue.")
+
+        if not (best_distances.sum() <= greedy_distances.sum() + 1e-6):
+            raise RuntimeError("Bad distance. If you see this error, please open issue.")
+
         return greedy_distances.sum(), greedy_cycle_ext, best_distances.sum(), best_cycle_ext

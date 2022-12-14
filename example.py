@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 
 class GraphPlanarGenerator:
-    def __init__(self, n = 10, loc = 0.0, scale = 1.0):
+    def __init__(self, n = 20, loc = 0.0, scale = 1.0):
         self.n = n
         self.loc = loc
         self.scale = scale
@@ -39,72 +39,121 @@ def visualize_cycles(coords: np.ndarray, greedy_cycle: np.array, best_cycle: np.
     edges = G.edges()
     colors = [G[u][v]['color'] for u,v in edges]
     weights = [G[u][v]['weight'] for u,v in edges]
-    nx.draw(G, pos=pos, with_labels=True, edge_color=colors, width=weights, ax=ax[0])
+    nx.draw(G, pos=pos, edge_color=colors, width=weights, ax=ax[0])
 
     edges = E.edges()
     colors = [E[u][v]['color'] for u,v in edges]
     weights = [E[u][v]['weight'] for u,v in edges]
-    nx.draw(E, pos=pos, with_labels=True, edge_color=colors, width=weights, ax=ax[1])
+    nx.draw(E, pos=pos, edge_color=colors, width=weights, ax=ax[1])
 
     plt.show()
 
-class SwapOperation:
-    def __init__(self, n_vertex):
-        self.first_index_fn = lambda: np.random.randint(0, n_vertex)
-        self.delta_index_fn = lambda: np.random.randint(0, n_vertex)
+class Operation:
+    def __init__(self, n_vertex, first_index_fn=None, delta_index_fn=None, p_generator=None):
+        if first_index_fn is None:
+            first_index_fn = lambda: np.random.randint(0, n_vertex)
+        self.first_index_fn = first_index_fn
+
+        if delta_index_fn is None:
+            delta_index_fn = lambda: np.random.randint(0, n_vertex)
+        self.delta_index_fn = delta_index_fn
+
+        self.p_generator = lambda: np.random.binomial(n=1, p=0.5)
 
     def get_index(self, i, length):
         return i % length
+
+    def reverse(self, cycle, index, other_index):
+        while index != other_index and \
+              index != self.get_index(other_index - 1, len(cycle)):
+            cycle[index], cycle[other_index] = cycle[other_index], cycle[index]
+            index = self.get_index(index + 1, len(cycle))
+            other_index = self.get_index(other_index - 1, len(cycle))
+
+        if index == self.get_index(other_index - 1, len(cycle)):
+            cycle[index], cycle[other_index] = cycle[other_index], cycle[index]
 
     def __call__(self, cycle, distances, distance, dist_matrix):
         index = self.get_index(self.first_index_fn(), len(cycle))
         delta = self.delta_index_fn()
         other_index = self.get_index(index + delta, len(cycle))
-
         distance_diff = 0
-        distance_diff -= distances[self.get_index(index - 1, len(cycle))]
-        distance_diff -= distances[self.get_index(index, len(cycle))]
-        distance_diff -= distances[self.get_index(other_index - 1, len(cycle))]
-        distance_diff -= distances[self.get_index(other_index, len(cycle))]
 
-        cycle[index], cycle[other_index] = cycle[other_index], cycle[index]
+        if self.p_generator():
+            # Swap
+            distance_diff -= distances[self.get_index(index - 1, len(cycle))]
+            distance_diff -= distances[self.get_index(index, len(cycle))]
+            distance_diff -= distances[self.get_index(other_index - 1, len(cycle))]
+            distance_diff -= distances[self.get_index(other_index, len(cycle))]
 
-        distances[self.get_index(index - 1, len(cycle))] = dist_matrix[cycle[self.get_index(index - 1, len(cycle))], cycle[index]]
-        distances[self.get_index(index, len(cycle))] = dist_matrix[cycle[index], cycle[self.get_index(index + 1, len(cycle))]]
-        distances[self.get_index(other_index - 1, len(cycle))] = dist_matrix[cycle[self.get_index(other_index - 1, len(cycle))], cycle[other_index]]
-        distances[self.get_index(other_index, len(cycle))] = dist_matrix[cycle[other_index], cycle[self.get_index(other_index + 1, len(cycle))]]
+            cycle[index], cycle[other_index] = cycle[other_index], cycle[index]
 
-        distance_diff += distances[self.get_index(index - 1, len(cycle))]
-        distance_diff += distances[self.get_index(index, len(cycle))]
-        distance_diff += distances[self.get_index(other_index - 1, len(cycle))]
-        distance_diff += distances[self.get_index(other_index, len(cycle))]
+            distances[self.get_index(index - 1, len(cycle))] = dist_matrix[cycle[self.get_index(index - 1, len(cycle))], cycle[index]]
+            distances[self.get_index(index, len(cycle))] = dist_matrix[cycle[index], cycle[self.get_index(index + 1, len(cycle))]]
+            distances[self.get_index(other_index - 1, len(cycle))] = dist_matrix[cycle[self.get_index(other_index - 1, len(cycle))], cycle[other_index]]
+            distances[self.get_index(other_index, len(cycle))] = dist_matrix[cycle[other_index], cycle[self.get_index(other_index + 1, len(cycle))]]
+
+            distance_diff += distances[self.get_index(index - 1, len(cycle))]
+            distance_diff += distances[self.get_index(index, len(cycle))]
+            distance_diff += distances[self.get_index(other_index - 1, len(cycle))]
+            distance_diff += distances[self.get_index(other_index, len(cycle))]
+        else:
+            # reverse
+            i = index
+            while self.get_index(i, len(cycle)) != other_index:
+                distance_diff -= distances[self.get_index(i - 1, len(cycle))]
+                i += 1
+            distance_diff -= distances[self.get_index(other_index - 1, len(cycle))]
+            distance_diff -= distances[self.get_index(other_index, len(cycle))]
+
+            self.reverse(cycle, index, other_index)
+
+            i = index
+            while self.get_index(i, len(cycle)) != other_index:
+                distances[self.get_index(i - 1, len(cycle))] = dist_matrix[cycle[self.get_index(i - 1, len(cycle))], cycle[self.get_index(i, len(cycle))]]
+                i += 1
+            distances[self.get_index(other_index - 1, len(cycle))] = dist_matrix[cycle[self.get_index(other_index - 1, len(cycle))], cycle[self.get_index(other_index, len(cycle))]]
+            distances[self.get_index(other_index, len(cycle))] = dist_matrix[cycle[self.get_index(other_index, len(cycle))], cycle[self.get_index(other_index + 1, len(cycle))]]
+
+            i = index
+            while self.get_index(i, len(cycle)) != other_index:
+                distance_diff += distances[self.get_index(i - 1, len(cycle))]
+                i += 1
+            distance_diff += distances[self.get_index(other_index - 1, len(cycle))]
+            distance_diff += distances[self.get_index(other_index, len(cycle))]
 
         return distance_diff
 
 if __name__ == "__main__":
     generator = GraphPlanarGenerator()
-    
-    coords, dist_matrix = generator.generate()
-    operation = SwapOperation(dist_matrix.shape[0])
+
     n_operations_fn = lambda ns,nds,nd: 1
     accept_l_fn = lambda d,nd,s: 1.0
     accept_h_fn = lambda d,nd,s: np.random.binomial(n=1, p=np.exp((d - nd) / 1.))
 
-    tsp = TSP(
-        dist_matrix,
-        operation,
-        n_operations_fn,
-        accept_l_fn,
-        accept_h_fn
-    )
-    try:
-        greedy_distance, greedy_cycle, best_distance, best_cycle = tsp.solve()
-        print("Кратчайшее расстояние из жадного алгоритма:", greedy_distance)
-        print("Итоговое кратчайшее расстояние:", best_distance)
+    test_flag = False
 
-        visualize_cycles(coords, greedy_cycle, best_cycle)
+    for i in range(100):
+        coords, dist_matrix = generator.generate()
+        operation = Operation(dist_matrix.shape[0])
 
-    except NegativeCycleException as ex:
-        print(ex)
-    except UnreachableVertexException as ex:
-        print(ex)
+        tsp = TSP(
+            dist_matrix,
+            operation,
+            n_operations_fn,
+            accept_l_fn,
+            accept_h_fn
+        )
+        try:
+            greedy_distance, greedy_cycle, best_distance, best_cycle = tsp.solve()
+            print("Кратчайшее расстояние из жадного алгоритма:", greedy_distance)
+            print("Итоговое кратчайшее расстояние:", best_distance)
+
+            if not test_flag:
+                visualize_cycles(coords, greedy_cycle, best_cycle)
+                break
+
+        except NegativeCycleException as ex:
+            print(ex)
+        except UnreachableVertexException as ex:
+            print(ex)
