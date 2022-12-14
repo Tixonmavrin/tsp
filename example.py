@@ -131,29 +131,24 @@ if __name__ == "__main__":
     accept_l_fn = lambda d,nd,s: 1.0
     accept_h_fn = lambda d,nd,s: np.random.binomial(n=1, p=np.exp((d - nd) / 1.))
 
-    test_flag = False
+    coords, dist_matrix = generator.generate()
+    operation = Operation(dist_matrix.shape[0])
 
-    for i in range(100):
-        coords, dist_matrix = generator.generate()
-        operation = Operation(dist_matrix.shape[0])
+    tsp = TSP(
+        dist_matrix,
+        operation,
+        n_operations_fn,
+        accept_l_fn,
+        accept_h_fn
+    )
+    try:
+        greedy_distance, greedy_cycle, best_distance, best_cycle = tsp.solve()
+        print("Кратчайшее расстояние из жадного алгоритма:", greedy_distance)
+        print("Итоговое кратчайшее расстояние:", best_distance)
 
-        tsp = TSP(
-            dist_matrix,
-            operation,
-            n_operations_fn,
-            accept_l_fn,
-            accept_h_fn
-        )
-        try:
-            greedy_distance, greedy_cycle, best_distance, best_cycle = tsp.solve()
-            print("Кратчайшее расстояние из жадного алгоритма:", greedy_distance)
-            print("Итоговое кратчайшее расстояние:", best_distance)
+        visualize_cycles(coords, greedy_cycle, best_cycle)
 
-            if not test_flag:
-                visualize_cycles(coords, greedy_cycle, best_cycle)
-                break
-
-        except NegativeCycleException as ex:
-            print(ex)
-        except UnreachableVertexException as ex:
-            print(ex)
+    except NegativeCycleException as ex:
+        print(ex)
+    except UnreachableVertexException as ex:
+        print(ex)
