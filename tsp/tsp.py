@@ -4,13 +4,17 @@ from typing import Union, Tuple
 
 from .disjoint_set import DisjointSet
 from .exceptions import NegativeCycleException, UnreachableVertexException
+from .operation import SwapReverseOperation
 
 ArrayLike = Union[float, list, np.ndarray]
+
+
 def to_ndarray(data: ArrayLike) -> np.ndarray:
     if isinstance(data, np.ndarray):
         return data
     else:
         return np.asarray(data)
+
 
 def get_path(Pr, i, j):
     path = [j]
@@ -20,15 +24,11 @@ def get_path(Pr, i, j):
         k = Pr[i, k]
     return path[::-1]
 
+
 class TSP:
     def __init__(
-            self, 
-            graph,
-            operation,
-            n_operations_fn,
-            accept_l_fn,
-            accept_h_fn,
-            num_steps = 100_000):
+        self, graph, operation, n_operations_fn, accept_l_fn, accept_h_fn, num_steps
+    ):
 
         graph = to_ndarray(graph)
         if len(graph.shape) != 2 or graph.shape[0] != graph.shape[1]:
@@ -56,10 +56,9 @@ class TSP:
         for x, y in zip(pos_x, pos_y):
             if x in from_set or y in to_set:
                 continue
-
-            if len(from_set) != len(to_set):
-                raise RuntimeError("Bad greedy solution. If you see this error, please open issue.")
-            if len(from_set) != dist_matrix.shape[0] - 1 and disjoint_set.connected(x, y):
+            if len(from_set) != dist_matrix.shape[0] - 1 and disjoint_set.connected(
+                x, y
+            ):
                 continue
 
             from_set.add(x)
@@ -87,17 +86,16 @@ class TSP:
         for _ in range(dist_matrix.shape[0]):
             x = path[x]
             cycle.append(x)
-        if x != 0:
-            raise RuntimeError("Bad cycle. If you see this error, please open issue.")
         cycle = np.asarray(cycle)
 
         distances = self.get_cycle_distances(cycle=cycle, dist_matrix=dist_matrix)
         return distances, cycle
-    
-    def improve_distance(self, dist_matrix: np.ndarray, distances: np.array, cycle: np.array) -> Tuple[np.array, np.array]:
+
+    def improve_distance(
+        self, dist_matrix: np.ndarray, distances: np.array, cycle: np.array
+    ) -> Tuple[np.array, np.array]:
         distance = np.sum(distances)
         best_distance = distance
-        best_distances = distances
         best_cycle = cycle
 
         for step in range(self.num_steps):
@@ -105,50 +103,45 @@ class TSP:
             new_distances = distances.copy()
             new_distance = distance
 
-            n_operations = self.n_operations_fn(new_cycle, new_distances, new_distance)
+            n_operations = self.n_operations_fn(new_cycle, new_distances)
             for i in range(n_operations):
-                distance_diff = self.operation(new_cycle, new_distances, new_distance, dist_matrix)
+                distance_diff = self.operation(new_cycle, new_distances, dist_matrix)
                 new_distance += distance_diff
 
             if new_distance < best_distance:
-                best_distances = new_distances
                 best_distance = new_distance
                 best_cycle = new_cycle
 
-            if (new_distance < distance and self.accept_l_fn(distance, new_distance, step)) or (new_distance >= distance and self.accept_h_fn(distance, new_distance, step)):
+            if (
+                new_distance < distance
+                and self.accept_l_fn(distance, new_distance, step)
+            ) or (
+                new_distance >= distance
+                and self.accept_h_fn(distance, new_distance, step)
+            ):
                 distances = new_distances
                 distance = new_distance
                 cycle = new_cycle
 
-        return best_distances, best_cycle
+        return best_distance, best_cycle
 
-    def expand_path(self, dist_matrix, predecessors, cycle) -> np.array:
+    def expand_path(self, predecessors, cycle) -> np.array:
         cycle_ext = []
         for i in range(len(cycle) - 1):
             cycle_ext.extend(get_path(predecessors, cycle[i], cycle[i + 1])[1:])
         cycle_ext.extend(get_path(predecessors, cycle[len(cycle) - 1], cycle[0])[1:])
         cycle_ext = np.asarray(cycle_ext)
-
-        if (cycle_ext - np.roll(cycle_ext, -1) == 0).any():
-            raise RuntimeError("Bad cycle. If you see this error, please open issue.")
-
-        flags = np.arange(dist_matrix.shape[0])
-        for v in cycle_ext:
-            flags[v] = 1
-        if (flags != 1).any():
-            raise RuntimeError("Bad cycle. If you see this error, please open issue.")
-
         return cycle_ext
 
     def solve(self):
         try:
             dist_matrix, predecessors = shortest_path(
-                csgraph=self.graph, 
+                csgraph=self.graph,
                 method="auto",
-                directed=True, 
-                return_predecessors=True, 
-                unweighted=False, 
-                overwrite=False
+                directed=True,
+                return_predecessors=True,
+                unweighted=False,
+                overwrite=False,
             )
         except NegativeCycleError:
             raise NegativeCycleException("Found negative cycle.")
@@ -157,14 +150,71 @@ class TSP:
             raise UnreachableVertexException("All vertices must be reachable.")
 
         greedy_distances, greedy_cycle = self.greedy_solution(dist_matrix=dist_matrix)
-        greedy_cycle_ext = self.expand_path(dist_matrix=dist_matrix, predecessors=predecessors, cycle=greedy_cycle)
-        best_distances, best_cycle = self.improve_distance(dist_matrix=dist_matrix, distances=greedy_distances, cycle=greedy_cycle)
-        best_cycle_ext = self.expand_path(dist_matrix=dist_matrix, predecessors=predecessors, cycle=best_cycle)
+        greedy_cycle_ext = self.expand_path(
+            predecessors=predecessors, cycle=greedy_cycle
+        )
+        best_distance, best_cycle = self.improve_distance(
+            dist_matrix=dist_matrix, distances=greedy_distances, cycle=greedy_cycle
+        )
+        best_cycle_ext = self.expand_path(predecessors=predecessors, cycle=best_cycle)
 
-        if not np.isclose(greedy_distances.sum(), self.get_cycle_distances(greedy_cycle_ext, dist_matrix).sum()) or not np.isclose(best_distances.sum(), self.get_cycle_distances(best_cycle_ext, dist_matrix).sum()):
-            raise RuntimeError("Bad cycle. If you see this error, please open issue.")
+        return greedy_distances.sum(), greedy_cycle_ext, best_distance, best_cycle_ext
 
-        if not (best_distances.sum() <= greedy_distances.sum() + 1e-6):
-            raise RuntimeError("Bad distance. If you see this error, please open issue.")
 
-        return greedy_distances.sum(), greedy_cycle_ext, best_distances.sum(), best_cycle_ext
+class SwapReverseTSP(TSP):
+    def __init__(
+        self,
+        graph,
+        n_operations_fn,
+        accept_l_fn,
+        accept_h_fn,
+        num_steps,
+        first_index_fn,
+        delta_index_fn,
+        p_fn,
+    ):
+
+        super().__init__(
+            graph,
+            SwapReverseOperation(
+                first_index_fn=first_index_fn, delta_index_fn=delta_index_fn, p_fn=p_fn
+            ),
+            n_operations_fn,
+            accept_l_fn,
+            accept_h_fn,
+            num_steps,
+        )
+
+
+class SimpleSwapReverseTSP(SwapReverseTSP):
+    def __init__(self, graph, num_steps=100_000):
+
+        super().__init__(
+            graph=graph,
+            n_operations_fn=lambda new_cycle, new_distances: np.random.randint(
+                0, int(np.log(graph.shape[0])) + 1
+            ),
+            accept_l_fn=lambda distance, new_distance, step: 1.0,
+            accept_h_fn=lambda distance, new_distance, step: 0.0,
+            num_steps=num_steps,
+            first_index_fn=lambda: np.random.randint(0, graph.shape[0]),
+            delta_index_fn=lambda: np.random.randint(0, graph.shape[0]),
+            p_fn=lambda: np.random.binomial(n=1, p=0.5),
+        )
+
+
+class StandartSwapReverseTSP(SwapReverseTSP):
+    def __init__(self, graph, num_steps=100_000):
+
+        super().__init__(
+            graph=graph,
+            n_operations_fn=lambda new_cycle, new_distances: 1,
+            accept_l_fn=lambda distance, new_distance, step: 1.0,
+            accept_h_fn=lambda distance, new_distance, step: np.random.binomial(
+                n=1, p=np.exp((distance - new_distance) / 1.0)
+            ),
+            num_steps=num_steps,
+            first_index_fn=lambda: np.random.randint(0, graph.shape[0]),
+            delta_index_fn=lambda: np.random.randint(0, graph.shape[0]),
+            p_fn=lambda: np.random.binomial(n=1, p=0.5),
+        )
