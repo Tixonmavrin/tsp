@@ -3,7 +3,7 @@ from tsp import (
     NegativeCycleException,
     UnreachableVertexException,
     PlanarGraphGenerator,
-    SimpleSwapReverseTSP,
+    StandartSwapReverseTSP,
     visualize_cycles,
 )
 import numpy as np
@@ -14,7 +14,7 @@ if __name__ == "__main__":
     n = 100
     generator = PlanarGraphGenerator(n=n)
     coords, dist_matrix = generator.generate()
-    tsp = SimpleSwapReverseTSP(dist_matrix, num_steps=100_000)
+    tsp = StandartSwapReverseTSP(dist_matrix, theta=0.01, num_steps=100_000)
     try:
         greedy_distance, greedy_cycle, best_distance, best_cycle = tsp.solve()
         print("Кратчайшее расстояние из жадного алгоритма:", greedy_distance)

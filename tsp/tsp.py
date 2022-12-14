@@ -204,14 +204,16 @@ class SimpleSwapReverseTSP(SwapReverseTSP):
 
 
 class StandartSwapReverseTSP(SwapReverseTSP):
-    def __init__(self, graph, num_steps=100_000):
+    def __init__(self, graph, theta=1.0, num_steps=100_000):
 
         super().__init__(
             graph=graph,
-            n_operations_fn=lambda new_cycle, new_distances: 1,
+            n_operations_fn=lambda new_cycle, new_distances: np.random.randint(
+                0, int(np.log(graph.shape[0])) + 1
+            ),
             accept_l_fn=lambda distance, new_distance, step: 1.0,
             accept_h_fn=lambda distance, new_distance, step: np.random.binomial(
-                n=1, p=np.exp((distance - new_distance) / 1.0)
+                n=1, p=np.exp((distance - new_distance) / theta)
             ),
             num_steps=num_steps,
             first_index_fn=lambda: np.random.randint(0, graph.shape[0]),
