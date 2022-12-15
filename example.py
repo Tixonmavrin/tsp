@@ -3,24 +3,26 @@ from tsp import (
     NegativeCycleException,
     UnreachableVertexException,
     PlanarGraphGenerator,
-    StandartSwapReverseTSP,
+    SwapReverseTSPStable,
     visualize_cycles,
+    visualize_losses,
 )
 import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
 
 if __name__ == "__main__":
-    n = 100
+    n = 293
     generator = PlanarGraphGenerator(n=n)
     coords, dist_matrix = generator.generate()
-    tsp = StandartSwapReverseTSP(dist_matrix, theta=0.01, num_steps=100_000)
+    tsp = SwapReverseTSPStable(dist_matrix)
     try:
-        greedy_distance, greedy_cycle, best_distance, best_cycle = tsp.solve()
+        greedy_distance, greedy_cycle, best_distance, best_cycle, losses = tsp.solve(num_steps=100_000, use_greedy=True)
         print("Кратчайшее расстояние из жадного алгоритма:", greedy_distance)
         print("Итоговое кратчайшее расстояние:", best_distance)
 
         visualize_cycles(coords, greedy_cycle, best_cycle)
+        visualize_losses(losses)
 
     except NegativeCycleException as ex:
         print(ex)

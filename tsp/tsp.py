@@ -4,7 +4,7 @@ from typing import Union, Tuple
 
 from .disjoint_set import DisjointSet
 from .exceptions import NegativeCycleException, UnreachableVertexException
-from .operation import SwapReverseOperation
+from .operation import SwapReverseOperation, SwapReverseDistanceOperation
 
 ArrayLike = Union[float, list, np.ndarray]
 
@@ -27,7 +27,7 @@ def get_path(Pr, i, j):
 
 class TSP:
     def __init__(
-        self, graph, operation, n_operations_fn, accept_l_fn, accept_h_fn, num_steps
+        self, graph, operation, n_operations_fn, accept_l_fn, accept_h_fn
     ):
 
         graph = to_ndarray(graph)
@@ -40,8 +40,6 @@ class TSP:
         self.n_operations_fn = n_operations_fn
         self.accept_l_fn = accept_l_fn
         self.accept_h_fn = accept_h_fn
-
-        self.num_steps = num_steps
 
     def get_greedy_path_map(self, dist_matrix: np.ndarray) -> dict:
         positions = dist_matrix.ravel().argsort()
@@ -92,13 +90,14 @@ class TSP:
         return distances, cycle
 
     def improve_distance(
-        self, dist_matrix: np.ndarray, distances: np.array, cycle: np.array
+        self, dist_matrix: np.ndarray, distances: np.array, cycle: np.array, num_steps: int
     ) -> Tuple[np.array, np.array]:
         distance = np.sum(distances)
         best_distance = distance
         best_cycle = cycle
+        losses = [distance]
 
-        for step in range(self.num_steps):
+        for step in range(num_steps):
             new_cycle = cycle.copy()
             new_distances = distances.copy()
             new_distance = distance
@@ -107,6 +106,8 @@ class TSP:
             for i in range(n_operations):
                 distance_diff = self.operation(new_cycle, new_distances, dist_matrix)
                 new_distance += distance_diff
+
+            losses.append(new_distance)
 
             if new_distance < best_distance:
                 best_distance = new_distance
@@ -123,7 +124,14 @@ class TSP:
                 distance = new_distance
                 cycle = new_cycle
 
-        return best_distance, best_cycle
+        return best_distance, best_cycle, losses
+
+    def random_solution(self, dist_matrix: np.ndarray) -> Tuple[np.array, np.array]:
+        cycle = np.arange(dist_matrix.shape[0])
+        np.random.shuffle(cycle)
+
+        distances = self.get_cycle_distances(cycle=cycle, dist_matrix=dist_matrix)
+        return distances, cycle
 
     def expand_path(self, predecessors, cycle) -> np.array:
         cycle_ext = []
@@ -133,7 +141,7 @@ class TSP:
         cycle_ext = np.asarray(cycle_ext)
         return cycle_ext
 
-    def solve(self):
+    def solve(self, num_steps=100_000, use_greedy = True):
         try:
             dist_matrix, predecessors = shortest_path(
                 csgraph=self.graph,
@@ -149,16 +157,19 @@ class TSP:
         if (dist_matrix == np.inf).any():
             raise UnreachableVertexException("All vertices must be reachable.")
 
-        greedy_distances, greedy_cycle = self.greedy_solution(dist_matrix=dist_matrix)
-        greedy_cycle_ext = self.expand_path(
-            predecessors=predecessors, cycle=greedy_cycle
+        if use_greedy:
+            start_distances, start_cycle = self.greedy_solution(dist_matrix=dist_matrix)
+        else:
+            start_distances, start_cycle = self.random_solution(dist_matrix=dist_matrix)
+        start_cycle_ext = self.expand_path(
+            predecessors=predecessors, cycle=start_cycle
         )
-        best_distance, best_cycle = self.improve_distance(
-            dist_matrix=dist_matrix, distances=greedy_distances, cycle=greedy_cycle
+        best_distance, best_cycle, losses = self.improve_distance(
+            dist_matrix=dist_matrix, distances=start_distances, cycle=start_cycle, num_steps=num_steps
         )
         best_cycle_ext = self.expand_path(predecessors=predecessors, cycle=best_cycle)
 
-        return greedy_distances.sum(), greedy_cycle_ext, best_distance, best_cycle_ext
+        return start_distances.sum(), start_cycle_ext, best_distance, best_cycle_ext, losses
 
 
 class SwapReverseTSP(TSP):
@@ -168,7 +179,6 @@ class SwapReverseTSP(TSP):
         n_operations_fn,
         accept_l_fn,
         accept_h_fn,
-        num_steps,
         first_index_fn,
         delta_index_fn,
         p_fn,
@@ -181,13 +191,12 @@ class SwapReverseTSP(TSP):
             ),
             n_operations_fn,
             accept_l_fn,
-            accept_h_fn,
-            num_steps,
+            accept_h_fn
         )
 
 
-class SimpleSwapReverseTSP(SwapReverseTSP):
-    def __init__(self, graph, num_steps=100_000):
+class SwapReverseTSPFixed(SwapReverseTSP):
+    def __init__(self, graph):
 
         super().__init__(
             graph=graph,
@@ -196,15 +205,14 @@ class SimpleSwapReverseTSP(SwapReverseTSP):
             ),
             accept_l_fn=lambda distance, new_distance, step: 1.0,
             accept_h_fn=lambda distance, new_distance, step: 0.0,
-            num_steps=num_steps,
             first_index_fn=lambda: np.random.randint(0, graph.shape[0]),
             delta_index_fn=lambda: np.random.randint(0, graph.shape[0]),
             p_fn=lambda: np.random.binomial(n=1, p=0.5),
         )
 
 
-class StandartSwapReverseTSP(SwapReverseTSP):
-    def __init__(self, graph, theta=1.0, num_steps=100_000):
+class SwapReverseTSPFixedAnnealing(SwapReverseTSP):
+    def __init__(self, graph, theta=1.0):
 
         super().__init__(
             graph=graph,
@@ -215,8 +223,74 @@ class StandartSwapReverseTSP(SwapReverseTSP):
             accept_h_fn=lambda distance, new_distance, step: np.random.binomial(
                 n=1, p=np.exp((distance - new_distance) / theta)
             ),
-            num_steps=num_steps,
             first_index_fn=lambda: np.random.randint(0, graph.shape[0]),
             delta_index_fn=lambda: np.random.randint(0, graph.shape[0]),
             p_fn=lambda: np.random.binomial(n=1, p=0.5),
+        )
+
+class ThetaCounter:
+    def __init__(self, theta, gamma):
+        self.saved_theta = theta
+        self.gamma = gamma
+    def __call__(self):
+        theta = self.saved_theta
+        self.saved_theta *= self.gamma
+        return theta
+
+class SwapReverseTSPChangingExpAnnealing(SwapReverseTSP):
+    def __init__(self, graph, theta=1., gamma=0.99):
+        theta_fn = ThetaCounter(theta, gamma)
+        super().__init__(
+            graph=graph,
+            n_operations_fn=lambda new_cycle, new_distances: np.random.randint(
+                0, int(np.log(graph.shape[0])) + 1
+            ),
+            accept_l_fn=lambda distance, new_distance, step: 1.0,
+            accept_h_fn=lambda distance, new_distance, step: np.random.binomial(
+                n=1, p=np.exp((distance - new_distance) / theta_fn())
+            ),
+            first_index_fn=lambda: np.random.randint(0, graph.shape[0]),
+            delta_index_fn=lambda: np.random.randint(0, graph.shape[0]),
+            p_fn=lambda: np.random.binomial(n=1, p=0.5),
+        )
+
+class SwapReverseTSPChangingLinearAnnealing(SwapReverseTSP):
+    def __init__(self, graph, theta_start=1., theta_end=1e-4, n_end=100_000):
+        theta_fn = lambda step: step * (theta_end - theta_start) / n_end + theta_start if step <= n_end else theta_end
+        super().__init__(
+            graph=graph,
+            n_operations_fn=lambda new_cycle, new_distances: np.random.randint(
+                0, int(np.log(graph.shape[0])) + 1
+            ),
+            accept_l_fn=lambda distance, new_distance, step: 1.0,
+            accept_h_fn=lambda distance, new_distance, step: np.random.binomial(
+                n=1, p=np.exp((distance - new_distance) / theta_fn(step))
+            ),
+            first_index_fn=lambda: np.random.randint(0, graph.shape[0]),
+            delta_index_fn=lambda: np.random.randint(0, graph.shape[0]),
+            p_fn=lambda: np.random.binomial(n=1, p=0.5),
+        )
+
+class DefaultTheta:
+    def __init__(self):
+        pass
+    def __call__(self, step):
+        theta = min(0.1, 1. * pow(step + 1.0, -0.5))
+        return theta
+
+class SwapReverseTSPStable(TSP):
+    def __init__(self, graph):
+        theta_fn = DefaultTheta()
+        p_fn=lambda: np.random.binomial(n=1, p=0.1)
+
+        super().__init__(
+            graph=graph,
+            operation=SwapReverseDistanceOperation(
+                p_fn=p_fn
+            ),
+            n_operations_fn=lambda new_cycle, new_distances: np.random.geometric(p=0.9),
+            accept_l_fn=lambda distance, new_distance, step: 1.,
+            accept_h_fn=lambda distance, new_distance, step: np.random.binomial(
+                n=1, p=np.exp((distance - new_distance) / theta_fn(step))
+            )
         )

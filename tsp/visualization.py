@@ -40,3 +40,7 @@ def visualize_cycles(
     draw_graph(E, posE, ax[1])
 
     plt.show()
+
+def visualize_losses(losses):
+    plt.plot(losses)
+    plt.show()
