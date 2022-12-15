@@ -2,7 +2,7 @@
 
 Решение задачи коммивояжера в случае действительных чисел (ориентированный граф с весами). Используется модифицированный метод отжига.
 
-<p align="center"><img src="images/optimization_example.png" alt="Optimization example"  width="300"/></p>
+<p align="center"><img src="images/optimization_example.jpg" alt="Optimization example"  width="300"/></p>
 
 ### Алгоритм работы
 
