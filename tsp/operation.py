@@ -116,19 +116,20 @@ class SwapReverseDistanceOperation:
             cycle[index], cycle[other_index] = cycle[other_index], cycle[index]
 
     def __call__(self, cycle, distances, dist_matrix):
-        distances_shifted = np.roll(distances, 1)
-        sum_distances = distances + distances_shifted
-
-        sum_distances_softmax = stable_softmax(sum_distances)
-        first_index = np.random.choice(np.arange(len(distances)), p=sum_distances_softmax)
-        index = self.get_index(first_index, len(cycle))
-        sum_distances[first_index] = 0.0
-        sum_distances_softmax = stable_softmax(sum_distances)
-        other_index = self.get_index(np.random.choice(np.arange(len(distances)), p=sum_distances_softmax), len(cycle))
-        distance_diff = 0
-
         if self.p_fn():
             # Swap
+            distances_shifted = np.roll(distances, 1)
+            sum_distances = distances + distances_shifted
+
+            sum_distances_softmax = stable_softmax(sum_distances)
+            first_index = np.random.choice(np.arange(len(distances)), p=sum_distances_softmax)
+            index = self.get_index(first_index, len(cycle))
+
+            diff = np.random.geometric(p=0.5) * (np.random.randint(0,2) * 2 - 1)
+            other_index = self.get_index(index + diff, len(cycle))
+            
+            distance_diff = 0
+
             distance_diff -= distances[self.get_index(index - 1, len(cycle))]
             distance_diff -= distances[self.get_index(index, len(cycle))]
             distance_diff -= distances[self.get_index(other_index - 1, len(cycle))]
@@ -155,6 +156,17 @@ class SwapReverseDistanceOperation:
             distance_diff += distances[self.get_index(other_index, len(cycle))]
         else:
             # reverse
+            distances_shifted = np.roll(distances, 1)
+            sum_distances = distances + distances_shifted
+
+            sum_distances_softmax = stable_softmax(sum_distances)
+            first_index = np.random.choice(np.arange(len(distances)), p=sum_distances_softmax)
+            index = self.get_index(first_index, len(cycle))
+            sum_distances[first_index] = 0.0
+            sum_distances_softmax = stable_softmax(sum_distances)
+            other_index = self.get_index(np.random.choice(np.arange(len(distances)), p=sum_distances_softmax), len(cycle))
+            distance_diff = 0
+
             i = index
             while self.get_index(i, len(cycle)) != other_index:
                 distance_diff -= distances[self.get_index(i - 1, len(cycle))]
