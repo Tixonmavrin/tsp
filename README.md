@@ -50,6 +50,8 @@ def p(self, distance, new_distance, step, losses):
 
 ### 4. О методе отжига
 
+[Simulated annealing](https://en.wikipedia.org/wiki/Simulated_annealing)
+
 ### 5. Результаты
 
 Для подсчета результатов взяли случайный граф из двумерного равномерного распределения. Число вершин равно `300`.
@@ -73,10 +75,10 @@ def p(self, distance, new_distance, step, losses):
 #### 2. Начиная с жадного алгоритма
 
 - Жадный и оптимизированный циклы:
-<p align="center"><img src="images/cycle_optimization_random.png" alt="Случайный и оптимизированный циклы"  width="400"/></p>
+<p align="center"><img src="images/cycle_optimization_greedy.png" alt="Случайный и оптимизированный циклы"  width="400"/></p>
 
 - Изменение ошибки во время обучения:
-<p align="center"><img src="images/loss_random.png" alt="Loss, начиная с жадного цикла"  width="400"/></p>
+<p align="center"><img src="images/loss_greedy.png" alt="Loss, начиная с жадного цикла"  width="400"/></p>
 
 Кратчайшее расстояние из первого приближения: `16.88694564793836`
 
