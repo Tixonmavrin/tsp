@@ -1,7 +1,7 @@
 from .exceptions import NegativeCycleException, UnreachableVertexException
-from .generator import PlanarGraphGeneratorNormal, PlanarGraphGeneratorUniform
+from .generator import PlanarGraphGeneratorNormal, PlanarGraphGeneratorUniform, RandomGraphGeneratorNormal
 from .operation import SwapReverseOperation
-from .positions import RandomPositions, SoftmaxPositions
-from .scheduler import StableScheduler
-from .tsp import TSP, SwapReverseTSPBase, SwapReverseTSPStable
+from .position import SwapReverseRandomPositions, SwapReverseSoftmaxPositions
+from .scheduler import BaseScheduler
+from .tsp import TSP, SwapReverseTSP
 from .visualization import visualize_cycles, visualize_losses

@@ -1,4 +1,3 @@
-from typing import TypeVar
 import numpy as np
 
 
@@ -19,3 +18,8 @@ class DisjointSet:
 
     def connected(self, x: int, y: int) -> bool:
         return self.find(x) == self.find(y)
+
+def stable_softmax(x):
+    z = x - np.max(x)
+    z = z - np.log(np.sum(np.exp(z)))
+    return np.exp(z)
